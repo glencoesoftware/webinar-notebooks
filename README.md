@@ -25,7 +25,9 @@ This notebook demonstrates how to read raw image pixels from OMERO Plus, perform
 
 The notebook covers raw pixel retrieval, image processing, OMERO ROI creation and saving, OMERO key - value pair creation, saving and linking to ROIs.
 
-Requirements:
+Requirements
+============
+
  * [OMERO.server](http://www.openmicroscopy.org/site/products/omero),
  * [OMERO.tables](https://www.openmicroscopy.org/site/support/omero5.2/sysadmins/server-tables.html),
  * [matplotlib](http://matplotlib.org/),
