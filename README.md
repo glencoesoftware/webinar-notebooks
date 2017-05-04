@@ -13,17 +13,19 @@ Notebooks 1 - 3
 ================
 
 Presented during [OMERO Plus for High Content Screening & Analysis: The Gold Standard in Data Management & Integratio](http://glencoesoftware.com/webinars.html#omero-plus-for-hcs) webinar.
+
 These notebooks demonstrate how to access the analytical data stored in OMERO using OMERO.tables and file annotations.
 
-The notebooks cover data retrieval, visualisation, statistical analysis and machine learning.
+The notebooks cover: data retrieval, visualisation, statistical analysis and machine learning.
 
 Notebook 4
 ==========
 
 Preseted during [Using PathViewer and Multiplexed Imaging to Advance Cancer Research](http://glencoesoftware.com/webinars.html#pathviewer-multiplexed-imaging) webinar.
+
 This notebook demonstrates how to read raw image pixels from OMERO Plus, perform image processing using [scikit-image](http://scikit-image.org/) and save the analysis results to OMERO Plus. Objects identified by [scikit-image](http://scikit-image.org/) algorithms are converted to OMERO region of interests (ROIs) and a set of key - value pairs describing each object.
 
-The notebook covers raw pixel retrieval, image processing, OMERO ROI creation and saving, OMERO key - value pair creation, saving and linking to ROIs.
+The notebook covers: raw pixel retrieval, image processing, OMERO ROI creation and saving, OMERO key - value pair creation, saving and linking to ROIs.
 
 Requirements
 ============
