@@ -18,6 +18,8 @@
 
 
 import numpy as np
+import omero
+from omero.gateway import BlitzGateway
 
 
 def get_plate_layout(conn, plate_id):
@@ -153,3 +155,215 @@ def add_labels(plt, names, X, Y):
             textcoords='offset points',
             ha='right', va='bottom',
             arrowprops=dict(arrowstyle='->', connectionstyle='arc3, rad=0'))
+
+        
+def connect_to_omero(user, password, host, port=4064):
+    conn = BlitzGateway(user, password, host=host, port=port)
+    print conn.connect()
+    user = conn.getUser()
+    print "Current user:"
+    print "   ID:", user.getId()
+    print "   Username:", user.getName()
+    print "   Full Name:", user.getFullName()
+    print "Member of:"
+    for g in conn.getGroupsMemberOf():
+        print "   ID:", g.getName(), " Name:", g.getId()
+    group = conn.getGroupFromContext()
+    print "Current group: ", group.getName()
+    return conn
+
+
+def get_image_by_roi(conn, image_id, roi):
+    image = conn.getObject("Image", image_id)
+    primary_pixels = image.getPrimaryPixels()
+    channel_label = image.getChannelLabels()[0]
+    print 'Processing channel:', channel_label
+    rect = roi.getShape(0)
+    x = rect.getX().getValue()
+    y = rect.getY().getValue()
+    width = rect.getWidth().getValue()
+    height = rect.getHeight().getValue()
+    tile = (int(x), int(y), int(width), int(height))
+    print "Reading tile:", tile
+    pixels = primary_pixels.getTile(0, 16, 0, tile)
+    return (pixels, channel_label)
+
+def write_objects_to_rois(conn, image_id, regions, prefix, xOffset, yOffset):
+    image = omero.model.ImageI(image_id, False)
+    description = 'Created with Glencoe Software data analysis tools'
+    namespace = 'com.glencoesoftware.analysis'
+    rois = []
+    for i, region in enumerate(regions):
+        roi_el = omero.model.RoiI()
+        roi_el.setName(omero.rtypes.rstring(
+            prefix + " " + '%02d' % (i + 1) ))
+        x = region.centroid[1] + xOffset
+        y = region.centroid[0] + yOffset
+        point = omero.model.PointI()
+        point.setCx(omero.rtypes.rdouble(x))
+        point.setCy(omero.rtypes.rdouble(y))
+        point.theZ = omero.rtypes.rint(0)
+        point.theT = omero.rtypes.rint(0)
+        roi_el.addShape(point)
+        roi_el.setImage(image)
+        rois.append(roi_el)
+    rois = conn.getUpdateService().saveAndReturnArray(rois)
+    return rois
+
+
+def save_map_annotations(conn, rois, regions):
+    links = []
+    description = 'Created with Glencoe Software data analysis tools'
+    namespace = 'com.glencoesoftware.analysis'
+    for k, roi in enumerate(rois):
+        nv = []
+        nv.append(omero.model.NamedValue(
+            "Area", str(regions[k].area)))
+        nv.append(omero.model.NamedValue(
+            "Centroid", str(regions[k].centroid)))
+        nv.append(omero.model.NamedValue(
+            "Convex Area", str(regions[k].convex_area)))
+        nv.append(omero.model.NamedValue(
+            "Eccentricity", str(regions[k].eccentricity)))
+        nv.append(omero.model.NamedValue(
+            "Extent", str(regions[k].extent)))
+        nv.append(omero.model.NamedValue(
+            "Major Axis Length", str(regions[k].major_axis_length)))
+        nv.append(omero.model.NamedValue(
+            "Minor Axis Length", str(regions[k].minor_axis_length)))
+        nv.append(omero.model.NamedValue(
+            "Orientation", str(regions[k].orientation)))
+        nv.append(omero.model.NamedValue(
+            "Perimeter", str(regions[k].perimeter)))
+        nv.append(omero.model.NamedValue(
+            "Solidity", str(regions[k].solidity)))
+    
+        map_annotation = omero.model.MapAnnotationI()
+        map_annotation.setMapValue(nv)
+        map_annotation.setDescription(omero.rtypes.rstring(description))
+        map_annotation.setNs(omero.rtypes.rstring(namespace))
+    
+        link = omero.model.RoiAnnotationLinkI()
+        link.setParent(omero.model.RoiI(roi.id.val, False))
+        link.setChild(map_annotation)
+        links.append(link)
+    links = conn.getUpdateService().saveAndReturnArray(links)
+    return links
+
+
+def save_as_omero_table(conn, image_id, rois, regions, xOffset, yOffset):
+    columns = []
+    columns.append(omero.grid.LongColumn('Index', '', []))
+    columns.append(omero.grid.ImageColumn('Image', '', []))
+    columns.append(omero.grid.RoiColumn('Roi', '', []))
+    columns.append(omero.grid.DoubleColumn('CenterX', '', []))
+    columns.append(omero.grid.DoubleColumn('CenterY', '', []))
+    columns.append(omero.grid.DoubleColumn('Area', '', []))
+    columns.append(omero.grid.DoubleColumn('Convex Area', '', []))
+    columns.append(omero.grid.DoubleColumn('Eccentricity', '', []))
+    columns.append(omero.grid.DoubleColumn('Extent', '', []))
+    columns.append(omero.grid.DoubleColumn('Major Axis Length', '', []))
+    columns.append(omero.grid.DoubleColumn('Minor Axis Length', '', []))
+    columns.append(omero.grid.DoubleColumn('Orientation', '', []))
+    columns.append(omero.grid.DoubleColumn('Perimeter', '', []))
+    columns.append(omero.grid.DoubleColumn('Solidity', '', []))
+
+    tableName = 'com.glencoesoftware.analysis.table'
+    table = conn.c.sf.sharedResources().newTable(1, tableName)
+    table.initialize(columns)
+
+    data = []
+    cx = [region.centroid[0] - xOffset for region in regions]
+    cy = [region.centroid[1] - yOffset for region in regions]
+    data.append(omero.grid.LongColumn('Index', '', range(len(rois))))
+    data.append(omero.grid.ImageColumn('Image', '', [int(image_id)] * len(rois)))
+    data.append(omero.grid.RoiColumn('Roi', '', [roi.id.val for roi in rois]))
+    data.append(omero.grid.DoubleColumn('CenterX', '', cx))
+    data.append(omero.grid.DoubleColumn('CenterY', '', cy))
+    data.append(omero.grid.DoubleColumn('Area', '', [region.area for region in regions]))
+    data.append(omero.grid.DoubleColumn('Convex Area', '', [region.convex_area for region in regions]))
+    data.append(omero.grid.DoubleColumn('Eccentricity', '', [region.eccentricity for region in regions]))
+    data.append(omero.grid.DoubleColumn('Extent', '', [region.extent for region in regions]))
+    data.append(omero.grid.DoubleColumn('Major Axis Length', '', [region.major_axis_length for region in regions]))
+    data.append(omero.grid.DoubleColumn('Minor Axis Length', '', [region.minor_axis_length for region in regions]))
+    data.append(omero.grid.DoubleColumn('Orientation', '', [region.orientation for region in regions]))
+    data.append(omero.grid.DoubleColumn('Perimeter', '', [region.perimeter for region in regions]))
+    data.append(omero.grid.DoubleColumn('Solidity', '', [region.solidity for region in regions]))
+
+    table.addData(data)
+    table.close()
+
+    orig_file = table.getOriginalFile()
+    orig_file_id = orig_file.id.val
+
+    file_ann = omero.model.FileAnnotationI()
+    file_ann.setFile(omero.model.OriginalFileI(orig_file_id, False))
+    file_ann = conn.getUpdateService().saveAndReturnObject(file_ann)
+
+    link = omero.model.ImageAnnotationLinkI()
+    link.setParent(omero.model.ImageI(image_id, False))
+    link.setChild(omero.model.FileAnnotationI(file_ann.getId().getValue(), False))
+    link = conn.getUpdateService().saveAndReturnObject(link)
+    return orig_file.id.val
+
+
+def summarise_regions(conn, roi_id, regions):
+    print "Computing average values for", len(regions), "regions"
+    cx = 0
+    cy = 0
+    area = 0
+    c_area = 0
+    eccentricity = 0
+    extent = 0
+    m_axis = 0
+    min_axis = 0
+    orientation = 0
+    perimeter = 0
+    solidity = 0
+    length = float(len(regions))
+    for region in regions:
+        cx += region.centroid[0]
+        cy += region.centroid[1]
+        area += region.area
+        c_area += region.convex_area
+        eccentricity += region.eccentricity
+        m_axis += region.major_axis_length
+        min_axis += region.minor_axis_length
+        orientation += region.orientation
+        perimeter += region.perimeter
+        solidity += region.solidity
+    description = 'Created with Glencoe Software data analysis tools'
+    namespace = 'com.glencoesoftware.analysis'
+    nv = []
+    nv.append(omero.model.NamedValue("Number of Cells", str(int(length))))
+    nv.append(omero.model.NamedValue(
+        "Area", str(area / length )))
+    nv.append(omero.model.NamedValue(
+        "Centroid", str( (cx / length, cy / length) )))
+    nv.append(omero.model.NamedValue(
+        "Convex Area", str(c_area / length)))
+    nv.append(omero.model.NamedValue(
+        "Eccentricity", str( eccentricity / length )))
+    nv.append(omero.model.NamedValue(
+        "Extent", str(extent / length)))
+    nv.append(omero.model.NamedValue(
+        "Major Axis Length", str(m_axis / length)))
+    nv.append(omero.model.NamedValue(
+        "Minor Axis Length", str(min_axis / length)))
+    nv.append(omero.model.NamedValue(
+        "Orientation", str(orientation / length)))
+    nv.append(omero.model.NamedValue(
+        "Perimeter", str(perimeter / length)))
+    nv.append(omero.model.NamedValue(
+        "Solidity", str(solidity / length)))
+    map_annotation = omero.model.MapAnnotationI()
+    map_annotation.setMapValue(nv)
+    map_annotation.setDescription(omero.rtypes.rstring(description))
+    map_annotation.setNs(omero.rtypes.rstring(namespace))
+    print "Attaching summary to ROI", roi_id
+    link = omero.model.RoiAnnotationLinkI()
+    link.setParent(omero.model.RoiI(roi_id, False))
+    link.setChild(map_annotation)
+    link = conn.getUpdateService().saveAndReturnObject(link)
+    return link
+    
