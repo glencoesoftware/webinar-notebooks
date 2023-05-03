@@ -36,7 +36,8 @@ def get_plate_layout(conn, plate_id):
     # For multiple fields this methods would have to be slightly modified.
     for x, row in enumerate(wg):
         for y, column in enumerate(row):
-            image_id = column.getWellSample().getImage().getId()
+            image_id = column.id
+
             plate_layout[image_id] = [x, y]
     plate_layout["number_of_rows"] = len(wg)
     plate_layout["number_of_columns"] = len(wg[0])
@@ -50,9 +51,8 @@ def build_display_matrix(plate_layout, image_id_column, property_to_display):
     Create a numpy array with correct number of rows and columns.
     Using Image Ids map Values to correct matrix elements.
     '''
-    array = np.zeros(
-        [plate_layout["number_of_rows"],
-         plate_layout["number_of_columns"]])
+    array = np.zeros([plate_layout["number_of_rows"],
+                      plate_layout["number_of_columns"]])
     for index, image_id in enumerate(image_id_column):
         x, y = plate_layout[image_id]
         array[x][y] = property_to_display[index]
@@ -133,7 +133,7 @@ def read_and_filter(file_path, columns_to_retrieve):
                 counter += 1
                 continue
             if header_index is None:
-                print "Header is None"
+                print("Header is None")
                 break
             # Read data from each row only for columns_to_retrieve.
             data.append(get_data_from_a_line_by_index(line, header_index))
@@ -159,17 +159,17 @@ def add_labels(plt, names, X, Y):
         
 def connect_to_omero(user, password, host, port=4064):
     conn = BlitzGateway(user, password, host=host, port=port)
-    print conn.connect()
+    print(conn.connect())
     user = conn.getUser()
-    print "Current user:"
-    print "   ID:", user.getId()
-    print "   Username:", user.getName()
-    print "   Full Name:", user.getFullName()
-    print "Member of:"
+    print("Current user:")
+    print(f"   ID:{user.getId()}" )
+    print(f"   Username:{user.getName()}")
+    print(f"   Full Name:{user.getFullName()}")
+    print("Member of:")
     for g in conn.getGroupsMemberOf():
-        print "   ID:", g.getName(), " Name:", g.getId()
+        print(f"   ID:{g.getName()} Name:{g.getId()}")
     group = conn.getGroupFromContext()
-    print "Current group: ", group.getName()
+    print(f"Current group: {group.getName()}")
     return conn
 
 
@@ -177,14 +177,14 @@ def get_image_by_roi(conn, image_id, roi):
     image = conn.getObject("Image", image_id)
     primary_pixels = image.getPrimaryPixels()
     channel_label = image.getChannelLabels()[0]
-    print 'Processing channel:', channel_label
+    print(f"Processing channel:{channel_label}")
     rect = roi.getShape(0)
     x = rect.getX().getValue()
     y = rect.getY().getValue()
     width = rect.getWidth().getValue()
     height = rect.getHeight().getValue()
     tile = (int(x), int(y), int(width), int(height))
-    print "Reading tile:", tile
+    print(f"Reading tile:{tile}")
     pixels = primary_pixels.getTile(0, 16, 0, tile)
     return (pixels, channel_label)
 
@@ -308,7 +308,7 @@ def save_as_omero_table(conn, image_id, rois, regions, xOffset, yOffset):
 
 
 def summarise_regions(conn, roi_id, regions):
-    print "Computing average values for", len(regions), "regions"
+    print(f"Computing average values for {len(regions)} regions")
     cx = 0
     cy = 0
     area = 0
@@ -360,7 +360,7 @@ def summarise_regions(conn, roi_id, regions):
     map_annotation.setMapValue(nv)
     map_annotation.setDescription(omero.rtypes.rstring(description))
     map_annotation.setNs(omero.rtypes.rstring(namespace))
-    print "Attaching summary to ROI", roi_id
+    print(f"Attaching summary to ROI{roi_id}")
     link = omero.model.RoiAnnotationLinkI()
     link.setParent(omero.model.RoiI(roi_id, False))
     link.setChild(map_annotation)
