@@ -1,0 +1,13 @@
+jupyter
+omero-py
+omero2pandas
+pandas
+numpy
+umap-learn
+scikit-learn
+scikit-image
+matplotlib
+holoviews
+bokeh
+datashader
+geopandas
